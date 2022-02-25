@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
-	"xds"
-	"xds/xmap"
+	//"xds"
+	//"xds/xmap"
 	xmm "github.com/heiyeluren/xmm"
+	xds "github.com/heiyeluren/xds"
+	xmap "github.com/heiyeluren/xds/xmap"
 	cast "github.com/spf13/cast"
 )
 
