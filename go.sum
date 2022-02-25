@@ -1,0 +1,9 @@
+github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/heiyeluren/xmm v0.2.4 h1:LTBN2/0j81B+74XJlj+mOp6O61OK8cbFSfFqQ/Z63z8=
+github.com/heiyeluren/xmm v0.2.4/go.mod h1:8QJJh1eQeh3twu/1F4QszTP+Gv6dtF3wFXdzQiYxleM=
+github.com/heiyeluren/xmm v0.2.5-0.20220224032610-dc4401be1e4c h1:xHJavjGZNRSgD72B8XKjPfVXkQB5Ey0smzTO6WUU4hU=
+github.com/heiyeluren/xmm v0.2.5-0.20220224032610-dc4401be1e4c/go.mod h1:8QJJh1eQeh3twu/1F4QszTP+Gv6dtF3wFXdzQiYxleM=
+github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/spf13/cast v1.4.1 h1:s0hze+J0196ZfEMTs80N7UlFt0BDuQ7Q+JDnHiMWKdA=
+github.com/spf13/cast v1.4.1/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
+github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
