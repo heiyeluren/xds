@@ -3,14 +3,15 @@ package xmap
 import (
 	"bytes"
 	"errors"
-	xmm "github.com/heiyeluren/xmm"
 	"log"
 	"reflect"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
-	"xds/xmap/entry"
+	//"xds/xmap/entry"
+	xmm "github.com/heiyeluren/xmm"
+	entry "github.com/heiyeluren/xds/xmap/entry"
 )
 
 /**

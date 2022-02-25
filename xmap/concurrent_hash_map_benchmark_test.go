@@ -2,7 +2,6 @@ package xmap
 
 import (
 	"fmt"
-	xmm "github.com/heiyeluren/xmm"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -10,8 +9,10 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-	"xds/xmap/entry"
+	//"xds/xmap/entry"
 	//"github.com/spf13/cast"
+	xmm "github.com/heiyeluren/xmm"
+	entry "github.com/heiyeluren/xds/xmap/entry"
 )
 
 //1000000000

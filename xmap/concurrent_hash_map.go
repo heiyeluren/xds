@@ -2,9 +2,9 @@ package xmap
 
 import (
 	"errors"
-	xmm "github.com/heiyeluren/xmm"
 	"reflect"
 	"unsafe"
+	xmm "github.com/heiyeluren/xmm"
 )
 
 

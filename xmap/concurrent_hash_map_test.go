@@ -3,8 +3,6 @@ package xmap
 import (
 	"bytes"
 	"fmt"
-	xmm "github.com/heiyeluren/xmm"
-	"github.com/spf13/cast"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -14,7 +12,10 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-	"xds/xmap/entry"
+	//"xds/xmap/entry"
+	"github.com/spf13/cast"
+	xmm "github.com/heiyeluren/xmm"
+	entry "github.com/heiyeluren/xds/xmap/entry"
 )
 
 func TestMap(t *testing.T) {
