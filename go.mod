@@ -1,4 +1,4 @@
-module xds
+module github.com/heiyeluren/xds
 
 go 1.12
 
