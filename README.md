@@ -28,8 +28,8 @@ XMap 是属于高性能开源Go数据结构Xds中的map数据结构类型的实�
 
 现有Golang中的map数据结构无法解决并发读写问题，Sync.map 并发性能偏差，针对这个情况，为XCache服务需要一个高性能、大容量、高并发、无GC的Map，所以开发实现 XMap。
 针对我们需求调研了市场上主要的 hashmap 结构，不能满足我们性能和功能要求。
-<br />
 
+<br />
 
 ### XMap设计目标是什么？
 
@@ -53,10 +53,111 @@ XMap 是属于高性能开源Go数据结构Xds中的map数据结构类型的实�
 
 Xmap目前并发读写场景下性能可以达到 200万 op/s，对比原生map单机性能80万 op/s，提升了3倍+，对比Go官方扩展库 sync.Map 性能有2倍的提升。
 
-##### XMap与Go官方数据结构特点对比：
+<br />
 
-|aaa|
-|bbbb|
+##### XMap与Go官方数据结构特点对比：(20%写入，80%读场景)
+
+| map模块 | 性能数据<br /> | 加锁机制 | 底层数据结构 | 内存机制 |
+|------|------|------|------|------|
+|map | 80w+ read/s <br /> 并发读写会panic | 无 | Hashtable + Array | Go gc |
+|sync.Map | 100w+ op/s | RWMutex | map | Go gc |
+| Xds.XMap | 200w+ op/s | CAS + RWMutex | Hashtable + Array + RBTree | XMM |
+
+<br />
+<br />
+
+
+## 如何使用XMap？
+
+快速使用：
+
+1. 下载对应包
+```shell
+go get -u github.com/heiyeluren/xds
+go get -u github.com/heiyeluren/xmm
+```
+
+
+2. 快速包含调用库：
+
+```go
+import (
+   xmm "github.com/heiyeluren/xmm"
+   xds "github.com/heiyeluren/xds"
+   xmap "github.com/heiyeluren/xds/xmap"
+)
+
+//创建一个XMM内存块
+f := &xmm.Factory{}
+mm, err := f.CreateMemory(0.75)
+
+//构建一个 map[string]string 的xmap
+m, err := xds.NewMap(mm, xmap.String, xmap.String)
+
+//写入、读取、删除一个元素
+err = m.Set("name", "heiyeluren")
+ret, err := m.Get("name")
+err = m.Remove("name")
+//...
+```
+
+
+3. 执行对应代码
+```shell
+go run map-test.go
+```
+
+#### XMap各类API使用案例：
+
+##### - [XMap使用示例](https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go)
+- ...
+
+
+以上代码案例执行输出：
+<br />
+<img src="https://raw.githubusercontent.com/heiyeluren/xds/main/docs/img/xds02.png" width="30%">
+
+<br />
+
+
+## XMap内部是如何实现的？
+
+- XMap内部实现机制描述
+- 敬请期待
+
+<br />
+
+<hr />
+
+<br />
+<br />
+<br />
+
+## XDS 项目开发者
+
+| 项目角色      | 项目成员 |
+| ----------- | ----------- |
+| 项目发起人/负责人      | 黑夜路人( @heiyeluren ) <br />老张 ( @Zhang-Jun-tao )       |
+| 项目开发者   | 老张 ( @Zhang-Jun-tao ) <br />黑夜路人( @heiyeluren ) <br /> Viktor ( @guojun1992 )        |
+
+<br /> <br />
+
+## XDS 技术交流
+
+XDS 还在早期，当然也少不了一些问题和 bug，欢迎大家一起共创，或者直接提交 PR 等等。
+
+欢迎加入XDS技术交流微信群，要加群，可以先添加如下微信让对方拉入群：<br />
+（如无法看到图片，请手工添加微信： heiyeluren2017 ）
+
+<img src=https://raw.githubusercontent.com/heiyeluren/xmm/main/docs/img/heiyeluren2017-wx.jpg width=40% />
+
+
+
+<br />
+<br />
+
+
+
 
 
 
