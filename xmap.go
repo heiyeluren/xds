@@ -1,7 +1,8 @@
 package xds
 
 import (
-	"xds/xmap"
+	//"xds/xmap"
+	xmap "github.com/heiyeluren/xds/xmap"
 	xmm "github.com/heiyeluren/xmm"
 )
 
