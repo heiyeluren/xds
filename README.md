@@ -111,10 +111,12 @@ err = m.Remove("name")
 go run map-test.go
 ```
 
-#### XMap各类API使用案例：
+### XMap各类API使用案例：
 
-##### - [XMap使用示例](https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go)
-- ...
+<br />
+
+#### - [XMap使用示例](https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go)
+- 更多案例（期待）
 
 
 以上代码案例执行输出：
@@ -126,8 +128,11 @@ go run map-test.go
 
 ## XMap内部是如何实现的？
 
-- XMap内部实现机制描述
-- 敬请期待
+- XMap内部实现机制描述 (敬请期待)
+- 
+- 参考：[《Go map内部实现机制一》](https://www.jianshu.com/p/aa0d4808cbb8)  |  [《Go map内部实现二》](https://zhuanlan.zhihu.com/p/406751292)
+- 参考：[《Golang sync.Map 性能及原理分析》](https://blog.csdn.net/u010853261/article/details/103848666)
+- 其他
 
 <br />
 
