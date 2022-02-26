@@ -1,4 +1,4 @@
-## XDS - eXtensible Data Structure <br />（第三方可扩展的 Go 语言中高性能数据结构和数据类型合集）
+## XDS - eXtensible Data Structure Sets <br />(第三方可扩展的 Golang 高性能数据结构和数据类型合集)
 
 A third-party extensible collection of high-performance data structures and data types in Go
 
@@ -25,10 +25,10 @@ XDS - eXtensible Data Structure（第三方可扩展的 Go 语言中高性能数
 
 XDS 主要是为了解决现有 Go 语言官方内置的各类数据结构性能在高并发场景中不尽如人意的情况而开发，核心主要是依赖于 [XMM](https://github.com/heiyeluren/xmm) 内存管理库基础之上开发，保证了高性能和内存可控。
 
-- XDS 集合目前主要包含：
-- XMap - 高性能的类似 map/sync.map 的 Map 型数据结构类型（已开源）
-- XSlice - 高性能类似 slice 的数组型数据结构类型（开发中）
-- XChannel - 高性能的 channel 管道类型（调研中）
+XDS 集合目前主要包含：
+- <b>XMap</b> - 高性能的类似 map/sync.map 的 Map 型数据结构类型（<b>已开源</b>）
+- <b>XSlice</b>  - 高性能类似 slice 的数组型数据结构类型（<b>开发中</b>）
+- <b>XChannel</b>  - 高性能的 channel 管道类型结构（<b>调研中</b>）
 - 更多...
 
 <br />
