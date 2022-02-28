@@ -1,3 +1,11 @@
+<img src=https://raw.githubusercontent.com/heiyeluren/xds/main/docs/img/xds-logo01.png width=50% />
+<p>
+<a href="https://sourcegraph.com/github.com/heiyeluren/xds?badge"><img src="https://sourcegraph.com/github.com/heiyeluren/xds/-/badge.svg" alt="GoDoc"></a>
+<a href="https://pkg.go.dev/github.com/heiyeluren/xds"><img src="https://pkg.go.dev/badge/github.com/heiyeluren/xds" alt="GoDoc"></a>
+<a href="https://goreportcard.com/report/github.com/heiyeluren/XMM"><img src="https://goreportcard.com/badge/github.com/heiyeluren/xds" alt="Go Report Card" /a>
+</p>
+
+
 ## XDS - eXtensible Data Structure Sets <br />(第三方可扩展的 Golang 高性能数据结构和数据类型合集)
 
 A third-party extensible collection of high-performance data structures and data types in Go
