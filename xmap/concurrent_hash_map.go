@@ -4,11 +4,11 @@ import (
 	"errors"
 	"reflect"
 	"unsafe"
-	xmm "github.com/heiyeluren/xmm"
+
+	"github.com/heiyeluren/xmm"
 )
 
-
-//定义 map 结构的类型
+// 定义 map 结构的类型
 // map[keyKind]valKind
 
 type Kind uint
@@ -43,7 +43,7 @@ const (
 	UnsafePointer
 )
 
-var InvalidType = errors.New("Type Error") //类型错误
+var InvalidType = errors.New("type Error") // 类型错误
 
 type ConcurrentHashMap struct {
 	keyKind Kind
@@ -51,7 +51,7 @@ type ConcurrentHashMap struct {
 	data    *ConcurrentRawHashMap
 }
 
-//NewDefaultConcurrentHashMap 类似于make(map[keyKind]valKind)
+// NewDefaultConcurrentHashMap 类似于make(map[keyKind]valKind)
 // mm 内存分配模块
 // keyKind: map中key的类型
 // valKind: map中value的类型
@@ -59,7 +59,7 @@ func NewDefaultConcurrentHashMap(mm xmm.XMemory, keyKind, valKind Kind) (*Concur
 	return NewConcurrentHashMap(mm, 16, 0.75, 8, keyKind, valKind)
 }
 
-//NewConcurrentHashMap 类似于make(map[keyKind]valKind)
+// NewConcurrentHashMap 类似于make(map[keyKind]valKind)
 // mm 内存分配模块
 // keyKind: map中key的类型
 // cap:初始化bucket长度
@@ -107,7 +107,7 @@ func (chm *ConcurrentHashMap) Del(key interface{}) (err error) {
 	return chm.data.Del(k)
 }
 
-//序列化，将来考虑基本类型一次访问
+// 序列化，将来考虑基本类型一次访问
 func (chm *ConcurrentHashMap) Marshal(kind Kind, content interface{}) (data []byte, err error) {
 	switch kind {
 	case String:
