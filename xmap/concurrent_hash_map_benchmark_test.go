@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-	//"xds/xmap/entry"
-	//"github.com/spf13/cast"
-	xmm "github.com/heiyeluren/xmm"
-	entry "github.com/heiyeluren/xds/xmap/entry"
+
+	// "xds/xmap/entry"
+	// "github.com/spf13/cast"
+	"github.com/heiyeluren/xmm"
+
+	"github.com/heiyeluren/xds/xmap/entry"
 )
 
-//1000000000
+// 1000000000
 func BenchmarkCHM_Put(b *testing.B) {
 	f := &xmm.Factory{}
 	mm, err := f.CreateMemory(0.75)
@@ -71,7 +73,7 @@ func BenchmarkCHM_Get(b *testing.B) {
 }
 
 func Test_CHM_Concurrent_Get(t *testing.T) {
-	//Init()
+	// Init()
 	f := &xmm.Factory{}
 	mm, err := f.CreateMemory(0.75)
 	if err != nil {
@@ -114,7 +116,7 @@ func TestGoCreateEntry(t *testing.T) {
 	var wait sync.WaitGroup
 	wait.Add(10)
 	node := &entry.NodeEntry{}
-	//nodes := make([]*entry.NodeEntry, 8000000)
+	// nodes := make([]*entry.NodeEntry, 8000000)
 	tt := time.Now()
 	for j := 0; j < 10; j++ {
 		go func(z int) {
@@ -123,7 +125,7 @@ func TestGoCreateEntry(t *testing.T) {
 				node.Key = []byte("keyPtr")
 				node.Value = []byte("valPtr")
 				node.Hash = 12121
-				//nodes[z*800000+i] = node
+				// nodes[z*800000+i] = node
 			}
 		}(j)
 	}
@@ -142,10 +144,10 @@ func TestCreateEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	/* 80445440 \ 283598848 \ 228630528 \ 267530240 \97157120 \ 129908736
-	keyPtr, valPtr, err := mm.From2("hjjhj", "jjjshjfhsdf")
-	if err != nil {
-		t.Fatal(err)
-	}*/
+	   keyPtr, valPtr, err := mm.From2("hjjhj", "jjjshjfhsdf")
+	   if err != nil {
+	   	t.Fatal(err)
+	   }*/
 	pageNum := float64(uintptr(entryPtr)) / 4096.0
 	fmt.Println(uintptr(entryPtr), pageNum, (pageNum+1)*4096 > float64(uintptr(entryPtr)+_NodeEntrySize))
 	node := (*entry.NodeEntry)(entryPtr)
@@ -189,7 +191,7 @@ func TestFieldCopy(t *testing.T) {
 					t.Fatal(err)
 				}
 				source := entry.NodeEntry{Value: keyPtr, Key: valPtr, Hash: 12312}
-				offset := unsafe.Offsetof(source.Next) //40
+				offset := unsafe.Offsetof(source.Next) // 40
 				srcData := (*[]byte)(unsafe.Pointer(&reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&source)), Len: int(offset), Cap: int(offset)}))
 				dstData := (*[]byte)(unsafe.Pointer(&reflect.SliceHeader{Data: uintptr(entryPtr), Len: int(offset), Cap: int(offset)}))
 				copy(*dstData, *srcData)

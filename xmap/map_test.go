@@ -5,22 +5,25 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	http "net/http"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"reflect"
 	"runtime"
 	"strconv"
-	strings "strings"
+	"strings"
 	"sync"
-	atomic "sync/atomic"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
-	//"xds/xmap/entry"
+
+	"github.com/heiyeluren/xmm"
+
+	// "xds/xmap/entry"
 	"github.com/spf13/cast"
-	xmm "github.com/heiyeluren/xmm"
-	entry "github.com/heiyeluren/xds/xmap/entry"
+
+	"github.com/heiyeluren/xds/xmap/entry"
 )
 
 type User struct {
@@ -182,7 +185,7 @@ func TestPointer(t *testing.T) {
 					if atomic.CompareAndSwapUintptr(addr, 0, ptr) {
 						users = append(users, ut)
 						sm.Store(i, ptr)
-						//fmt.Printf("i:%d ptr:%d\n", i, ptr)
+						// fmt.Printf("i:%d ptr:%d\n", i, ptr)
 					}
 				}
 			}
@@ -200,7 +203,7 @@ func TestPointer(t *testing.T) {
 	}
 }
 
-//todo  CompareAndSwapPointer xuexi
+// todo  CompareAndSwapPointer xuexi
 
 func TestRBTree(t *testing.T) {
 	rbt := new(entry.Tree)

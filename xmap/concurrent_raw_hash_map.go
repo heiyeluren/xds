@@ -9,21 +9,24 @@ import (
 	"sync"
 	"sync/atomic"
 	"unsafe"
-	//"xds/xmap/entry"
-	xmm "github.com/heiyeluren/xmm"
-	entry "github.com/heiyeluren/xds/xmap/entry"
+
+	"github.com/heiyeluren/xmm"
+
+	"github.com/heiyeluren/xds/xmap/entry"
 )
 
-/**
-  1、步长resize
-  2、sizeCtl增加cap的cas，不允许提前resize。
-   考虑 数组+ 链表方式
-*/
-
+// MinTransferStride is the minimum number of entries to transfer between
+// 1、步长resize
+// 2、sizeCtl增加cap的cas，不允许提前resize。
+// 考虑 数组+ 链表方式
 const MinTransferStride = 16
 const maximumCapacity = 1 << 30
-const KEY_EXISTS = true
-const KEY_NOT_EXISTS = false
+
+// KeyExists 标识key已经存在
+const KeyExists = true
+
+// KeyNotExists 标识key不存在
+const KeyNotExists = false
 
 var NotFound = errors.New("not found")
 var _BucketSize = unsafe.Sizeof(Bucket{})
@@ -33,26 +36,24 @@ var _NodeEntrySize = unsafe.Sizeof(entry.NodeEntry{})
 var _TreeSize = unsafe.Sizeof(entry.Tree{})
 var uintPtrSize = uintptr(8)
 
-// ConcurrentRawHashMap
-/*
-	清理方式：1、del清除entry(简单)
-			2、bulks清除旧的（resize结束，并无get读引用【引入重试来解决该问题】）
-			3、Bucket清除
-			4、ForwardingBucket清除
-			5、Tree 清除（spliceEntry2时候）
-*/
+// ConcurrentRawHashMap is a concurrent hash map with a fixed number of buckets.
+// 清理方式：1、del清除entry(简单)
+// 		2、bulks清除旧的（resize结束，并无get读引用【引入重试来解决该问题】）
+// 		3、Bucket清除
+// 		4、ForwardingBucket清除
+// 		5、Tree 清除（spliceEntry2时候）
 type ConcurrentRawHashMap struct {
 	size      uint64
 	threshold uint64
 	initCap   uint64
-	//off-heap
+	// off-heap
 	bulks *[]uintptr
 	mm    xmm.XMemory
 	lock  sync.RWMutex
 
 	treeSize uint64
 
-	//resize
+	// resize
 	sizeCtl   int64 // -1 正在扩容
 	reSizeGen uint64
 
@@ -60,8 +61,9 @@ type ConcurrentRawHashMap struct {
 	transferIndex uint64
 }
 
+// Bucket is a hash bucket.
 type Bucket struct {
-	forwarding bool //已经迁移完成
+	forwarding bool // 已经迁移完成
 	rwLock     sync.RWMutex
 	index      uint64
 	newBulks   *[]uintptr
@@ -71,8 +73,9 @@ type Bucket struct {
 	size       uint64
 }
 
+// ForwardingBucket is a hash bucket that has been forwarded to a new table.
 type ForwardingBucket struct {
-	forwarding bool //已经迁移完成
+	forwarding bool // 已经迁移完成
 	rwLock     sync.RWMutex
 	index      uint64
 	newBulks   *[]uintptr
@@ -85,13 +88,13 @@ type Snapshot struct {
 	nextBulks *[]uintptr
 }
 
-// NewDefaultConcurrentRawHashMap
+// NewDefaultConcurrentRawHashMap returns a new ConcurrentRawHashMap with the default
 // mm: xmm
 func NewDefaultConcurrentRawHashMap(mm xmm.XMemory) (*ConcurrentRawHashMap, error) {
 	return NewConcurrentRawHashMap(mm, 16, 0.75, 8)
 }
 
-// NewConcurrentRawHashMap
+// NewConcurrentRawHashMap will create a new ConcurrentRawHashMap with the given
 // mm: xmm 内存对象
 // cap:初始化bucket长度 （可以理解为 map 元素预计最大个数~，如果知道这个值可以提前传递）
 // fact:负责因子，当存放的元素超过该百分比，就会触发扩容。
@@ -124,27 +127,27 @@ func (chm *ConcurrentRawHashMap) getBulk(h uint64, tab *[]uintptr) *Bucket {
 	return bulk
 }
 
-// Fetch key from hashmap
+// Get Fetch key from hashmap
 func (chm *ConcurrentRawHashMap) Get(key []byte) (val []byte, keyExists bool, err error) {
 	h := BKDRHashWithSpread(key)
 	bulk := chm.getBulk(h, chm.bulks)
 	if bulk == nil {
-		return nil, KEY_NOT_EXISTS, NotFound
+		return nil, KeyNotExists, NotFound
 	}
 	if bulk.isTree {
 		exist, value := bulk.Tree.Get(key)
 		if !exist {
-			return nil, KEY_NOT_EXISTS, NotFound
+			return nil, KeyNotExists, NotFound
 		}
-		return value, KEY_EXISTS, nil
+		return value, KeyExists, nil
 	}
 	keySize := len(key)
 	for cNode := bulk.Head; cNode != nil; cNode = cNode.Next {
 		if keySize == len(cNode.Key) && bytes.Compare(key, cNode.Key) == 0 {
-			return cNode.Value, KEY_EXISTS, nil
+			return cNode.Value, KeyExists, nil
 		}
 	}
-	return nil, KEY_NOT_EXISTS, NotFound
+	return nil, KeyNotExists, NotFound
 }
 func (chm *ConcurrentRawHashMap) initForwardingEntries(newBulks *[]uintptr, index uint64) (*ForwardingBucket, error) {
 	entriesPtr, err := chm.mm.Alloc(_ForwardingBucketSize)
@@ -252,7 +255,7 @@ func (chm *ConcurrentRawHashMap) tabAt(bulks *[]uintptr, idx uint64) (*uintptr, 
 func (chm *ConcurrentRawHashMap) getAndInitBulk(entry *entry.NodeEntry, tabPtr *[]uintptr) (bulk *Bucket, swapped bool, err error) {
 	h := entry.Hash
 	idx := chm.index(h, cap(*tabPtr))
-	//retry := 10改小后，出现该问题。
+	// retry := 10改小后，出现该问题。
 	addr, _, bulk := chm.tabAt(tabPtr, idx)
 	if bulk != nil {
 		return bulk, false, nil
@@ -308,11 +311,11 @@ func (chm *ConcurrentRawHashMap) entryAssignment(keyPtr []byte, valPtr []byte, h
 
 func (chm *ConcurrentRawHashMap) entryAssignmentCpy(keyPtr []byte, valPtr []byte, hash uint64, nodePtr unsafe.Pointer) error {
 	source := entry.NodeEntry{Value: keyPtr, Key: valPtr, Hash: hash}
-	offset := 40 //unsafe.Offsetof(source.Next)  //40
+	offset := 40 // unsafe.Offsetof(source.Next)  //40
 	srcData := (*[]byte)(unsafe.Pointer(&reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&source)), Len: offset, Cap: offset}))
 	dstData := (*[]byte)(unsafe.Pointer(&reflect.SliceHeader{Data: uintptr(nodePtr), Len: offset, Cap: offset}))
 	if offset != copy(*dstData, *srcData) {
-		return errors.New("Incorrect copy length") //拷贝长度不正确
+		return errors.New("incorrect copy length") // 拷贝长度不正确
 	}
 	return nil
 }
@@ -340,6 +343,7 @@ func (chm *ConcurrentRawHashMap) putVal(key []byte, val []byte, h uint64) (*[]ui
 	return tabPtr, nil
 }
 
+// Put 将键值对添加到map中
 func (chm *ConcurrentRawHashMap) Put(key []byte, val []byte) error {
 	h := BKDRHashWithSpread(key)
 	tabPtr, err := chm.putVal(key, val, h)
@@ -354,6 +358,7 @@ func (chm *ConcurrentRawHashMap) Put(key []byte, val []byte) error {
 	return nil
 }
 
+// Del 删除键值对
 func (chm *ConcurrentRawHashMap) Del(key []byte) error {
 	h := BKDRHashWithSpread(key)
 	return chm.delVal(key, h)
@@ -380,7 +385,7 @@ func (chm *ConcurrentRawHashMap) delVal(key []byte, h uint64) error {
 		}
 		var removeNode *entry.NodeEntry
 		func() {
-			//删除bulk中的数目
+			// 删除bulk中的数目
 			bulk.rwLock.Lock()
 			defer bulk.rwLock.Unlock()
 			_, _, newBulk := chm.tabAt(tabPtr, chm.index(h, cap(*tabPtr)))
@@ -488,7 +493,7 @@ func (chm *ConcurrentRawHashMap) PutBulkValue(bulk *Bucket, node *entry.NodeEntr
 		}
 	}
 	bulk.size += 1
-	//加入
+	// 加入
 	if last == nil {
 		bulk.Head = node
 		return false, nil
@@ -504,12 +509,12 @@ func (chm *ConcurrentRawHashMap) expandCap(tab *[]uintptr) (s *Snapshot, need bo
 		return nil, false
 	}
 	nextBulks, bulks, sizeCtl := chm.nextBulks, chm.bulks, atomic.LoadInt64(&chm.sizeCtl)
-	//正在扩容
+	// 正在扩容
 	if sizeCtl < 0 && nextBulks != nil && cap(*nextBulks) == int(old)*2 {
 		if sizeCtl >= 0 {
 			return nil, false
 		}
-		//当前扩容状态正确，开始扩容
+		// 当前扩容状态正确，开始扩容
 		if unsafe.Pointer(tab) == unsafe.Pointer(bulks) && nextBulks != nil {
 			if atomic.CompareAndSwapInt64(&chm.sizeCtl, sizeCtl, sizeCtl+1) {
 				return &Snapshot{bulks: bulks, sizeCtl: sizeCtl, nextBulks: nextBulks}, true
@@ -517,11 +522,11 @@ func (chm *ConcurrentRawHashMap) expandCap(tab *[]uintptr) (s *Snapshot, need bo
 		}
 		return nil, false
 	}
-	//未开始扩容的判断
+	// 未开始扩容的判断
 	if sizeCtl >= 0 && (old<<1) > uint64(sizeCtl) && unsafe.Pointer(tab) == unsafe.Pointer(bulks) {
 		newSizeCtl := chm.resizeStamp(old) + 2
 		swapped := atomic.CompareAndSwapInt64(&chm.sizeCtl, sizeCtl, newSizeCtl)
-		//开始扩容
+		// 开始扩容
 		if swapped {
 			newCap := old << 1
 			bulksPtr, err := chm.mm.AllocSlice(uintPtrSize, uintptr(newCap), uintptr(newCap))
@@ -540,7 +545,7 @@ func (chm *ConcurrentRawHashMap) expandCap(tab *[]uintptr) (s *Snapshot, need bo
 }
 
 func (chm *ConcurrentRawHashMap) reHashSize(tab *[]uintptr) error {
-	//cas锁
+	// cas锁
 	snapshot, need := chm.expandCap(tab)
 	if !need {
 		return nil
@@ -572,14 +577,14 @@ func (chm *ConcurrentRawHashMap) reHashSize(tab *[]uintptr) error {
 			return nil
 		}
 		if atomic.CompareAndSwapPointer(bulksAddr, unsafe.Pointer(old), unsafe.Pointer(bulks)) {
-			//更换内容赋值
+			// 更换内容赋值
 			chm.nextBulks = nil
 			newCap := currentCap << 1
 			atomic.StoreInt64(&chm.sizeCtl, int64(newCap))
 			chm.threshold = chm.threshold << 1
 			chm.reSizeGen += 1
 			xmm.TestBbulks = uintptr(unsafe.Pointer(chm.bulks))
-			//fmt.Println(unsafe.Pointer(chm.bulks), xmm.TestBbulks, len(*chm.bulks))
+			// fmt.Println(unsafe.Pointer(chm.bulks), xmm.TestBbulks, len(*chm.bulks))
 			if err := chm.freeBuckets(oldBulks); err != nil {
 				log.Printf("freeBuckets err:%s\n", err)
 			}
@@ -661,11 +666,13 @@ func (chm *ConcurrentRawHashMap) reSizeBulks(s *Snapshot) error {
 	}
 }
 
+// Chain .链接
 type Chain struct {
 	Head *entry.NodeEntry
 	Tail *entry.NodeEntry
 }
 
+// Add 添加节点
 func (c *Chain) Add(node *entry.NodeEntry) {
 	if c.Head == nil {
 		c.Head = node
@@ -676,6 +683,7 @@ func (c *Chain) Add(node *entry.NodeEntry) {
 	c.Tail = node
 }
 
+// GetHead 获取head节点
 func (c *Chain) GetHead() *entry.NodeEntry {
 	if c.Tail != nil {
 		c.Tail.Next = nil
@@ -690,7 +698,7 @@ func (chm *ConcurrentRawHashMap) reSizeBulk(entries *Bucket, s *Snapshot) (loop 
 	currentCap := uint64(cap(*s.bulks))
 	tabPtr, nextTabPtr := unsafe.Pointer(s.bulks), unsafe.Pointer(s.nextBulks)
 	_, _, currentEntries := chm.tabAt(oldBulks, entries.index)
-	//判断newBulks为chm.newBulks,判断newBulks为chm.newBulks
+	// 判断newBulks为chm.newBulks,判断newBulks为chm.newBulks
 	if entries.forwarding || tabPtr != unsafe.Pointer(chm.bulks) ||
 		nextTabPtr != unsafe.Pointer(chm.nextBulks) || entries != currentEntries {
 		return false, nil
@@ -725,6 +733,7 @@ func (chm *ConcurrentRawHashMap) reSizeBulk(entries *Bucket, s *Snapshot) (loop 
 	return false, nil
 }
 
+// TreeSplice .
 func (chm *ConcurrentRawHashMap) TreeSplice(node *entry.NodeEntry, index uint64, mask uint64, oldChains, newChains *Chain) {
 	if node == nil {
 		return
@@ -738,7 +747,7 @@ func (chm *ConcurrentRawHashMap) TreeSplice(node *entry.NodeEntry, index uint64,
 	chm.TreeSplice(node.Right(), index, mask, oldChains, newChains)
 }
 
-//spliceEntry2 将Entry拆分为两个列表
+// spliceEntry2 将Entry拆分为两个列表
 func (chm *ConcurrentRawHashMap) spliceEntry2(entries *Bucket, mask uint64) (old *entry.NodeEntry, new *entry.NodeEntry, err error) {
 	var oldHead, oldTail, newHead, newTail *entry.NodeEntry
 	index := entries.index
@@ -746,7 +755,7 @@ func (chm *ConcurrentRawHashMap) spliceEntry2(entries *Bucket, mask uint64) (old
 		var oldChains, newChains Chain
 		chm.TreeSplice(entries.Tree.GetRoot(), index, mask, &oldChains, &newChains)
 		oldHead, newHead = oldChains.GetHead(), newChains.GetHead()
-		//todo 删除现在的tree内容
+		// todo 删除现在的tree内容
 		if err := chm.mm.Free(uintptr(unsafe.Pointer(entries.Tree))); err != nil {
 			return nil, nil, err
 		}
@@ -801,6 +810,7 @@ func (chm *ConcurrentRawHashMap) spliceBucket2(old *entry.NodeEntry, new *entry.
 	return
 }
 
+// BKDRHashWithSpread .
 func BKDRHashWithSpread(str []byte) uint64 {
 	seed := uint64(131) // 31 131 1313 13131 131313 etc..
 	hash := uint64(0)

@@ -12,10 +12,13 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-	//"xds/xmap/entry"
+
+	"github.com/heiyeluren/xmm"
+
+	// "xds/xmap/entry"
 	"github.com/spf13/cast"
-	xmm "github.com/heiyeluren/xmm"
-	entry "github.com/heiyeluren/xds/xmap/entry"
+
+	"github.com/heiyeluren/xds/xmap/entry"
 )
 
 func TestMap(t *testing.T) {
@@ -112,7 +115,7 @@ func TestConcurrentRawHashMap_Function_Second(t *testing.T) {
 
 func TestConcurrentRawHashMap_Function1(t *testing.T) {
 	Init()
-	//runtime.GOMAXPROCS(16)
+	// runtime.GOMAXPROCS(16)
 	f := &xmm.Factory{}
 	mm, err := f.CreateMemory(0.75)
 	if err != nil {
@@ -163,7 +166,7 @@ func TestConcurrentRawHashMap_Function1(t *testing.T) {
 }
 
 func TestMMM(t *testing.T) {
-	///usr/local/go/src/runtime
+	// /usr/local/go/src/runtime
 	filepath.Walk("/usr/local/go/src/runtime", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
@@ -206,7 +209,7 @@ func TestSizeOf(t *testing.T) {
 }
 
 type Bucket2 struct {
-	forwarding bool //已经迁移完成
+	forwarding bool // 已经迁移完成
 	rwlock     sync.RWMutex
 	index      uint64
 	newBulks   *[]uintptr
