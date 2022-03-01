@@ -43,11 +43,13 @@ import (
 	//一般数据结构中使用
 	m, err := xds.NewMap(mm, xds.String, xds.Int)
 
-	//序列化处理 (其他类型到 []byte)
+	//序列化处理 (其他类型到 []byte，两个函数效果一样)
 	data, err := xds.Marshal(xds.String, "heiyeluren")
+	data, err := xds.RawToByte(xds.String, "heiyeluren")
 
 	// 反序列化处理 (从 []byte到原始类型)
 	str, err := xds.UnMarshal(xds.String, data)
+	data, err := xds.ByteToRaw(xds.String, "heiyeluren")
 
 */
 
