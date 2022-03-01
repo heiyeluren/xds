@@ -50,7 +50,7 @@ func TestMap(mm xmm.XMemory) {
 
 	// 初始化xmap的时候必须制定key和val的数据类型，数据类型是在xmap中定义的
 	// 构建一个 map[string]int 的xmap
-	m, err := xds.NewMap(mm, xds.String, xds.Int)
+	m, err := xmap.NewMap(mm, xds.String, xds.Int)
 	if err != nil {
 		panic("call NewMap() fail")
 	}
@@ -93,7 +93,7 @@ func TestMap(mm xmm.XMemory) {
 		v22 = "heiyeluren"
 	)
 	// 生成一个 map[string]string 数据结构，默认大小256个元素，占用了75%后进行map扩容(这个初始化函数可以获得更好性能，看个人使用场景）
-	m, err = xds.NewMapEx(mm, xds.String, xds.String, uintptr(256), 0.75)
+	m, err = xmap.NewMapEx(mm, xds.String, xds.String, uintptr(256), 0.75)
 	// set数据
 	m.Set(k22, v22)
 	// get数据
@@ -111,7 +111,7 @@ func TestHashMap(mm xmm.XMemory) {
 
 	fmt.Println("===== XMap X(eXtensible) Raw Map (HashMap) example ======")
 
-	hm, err := xds.NewHashMap(mm)
+	hm, err := xmap.NewHashMap(mm)
 	if err != nil {
 		panic("call NewHashMap() fail")
 	}
