@@ -107,6 +107,9 @@ go get -u github.com/heiyeluren/xmm
 2. 快速包含调用库：
 
 ```go
+//注意：本代码只是伪代码，大家最好看这个使用测试案例更充分一些
+//使用案例：https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go
+
 import (
    xmm "github.com/heiyeluren/xmm"
    xds "github.com/heiyeluren/xds"
@@ -122,7 +125,7 @@ m, err := xds.NewMap(mm, xmap.String, xmap.String)
 
 // 写入、读取、删除一个元素
 err = m.Set("name", "heiyeluren")
-ret, err := m.Get("name")
+ret, key_exists, err := m.Get("name")
 err = m.Remove("name")
 //...
 ```
