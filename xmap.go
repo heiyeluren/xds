@@ -19,8 +19,10 @@
 package xds
 
 import (
+	// "xds"
+	// "xds/xmap"	
 	"github.com/heiyeluren/xmm"
-
+	// "github.com/heiyeluren/xds"
 	"github.com/heiyeluren/xds/xmap"
 )
 
@@ -43,7 +45,7 @@ type XMap struct {
 // 本函数调用参考：
 // 生成一个 map[int]string 数据结构，默认大小16个元素，占用了75%后进行map扩容
 //	m, err := xds.NewMapEx(mm, xmap.Int, xmap.String)
-func NewMap(mm xmm.XMemory, keyKind xmap.Kind, valKind xmap.Kind) (*XMap, error) {
+func NewMap(mm xmm.XMemory, keyKind xds.Kind, valKind xds.Kind) (*XMap, error) {
 	chm, err := xmap.NewDefaultConcurrentHashMap(mm, keyKind, valKind)
 	if err != nil {
 		return nil, err
@@ -64,7 +66,7 @@ func NewMap(mm xmm.XMemory, keyKind xmap.Kind, valKind xmap.Kind) (*XMap, error)
 // 本函数调用参考：
 // 	//生成一个 map[int]string 数据结构，默认大小256个元素，占用了75%后进行map扩容
 // 	m, err := xds.NewMapEx(mm, xmap.Int, xmap.String, (uintptr)256, 0.75)
-func NewMapEx(mm xmm.XMemory, keyKind xmap.Kind, valKind xmap.Kind, capSize uintptr, factSize float64) (*XMap, error) {
+func NewMapEx(mm xmm.XMemory, keyKind xds.Kind, valKind xds.Kind, capSize uintptr, factSize float64) (*XMap, error) {
 	chm, err := xmap.NewConcurrentHashMap(mm, capSize, factSize, 8, keyKind, valKind)
 	if err != nil {
 		return nil, err

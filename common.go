@@ -166,4 +166,15 @@ func UnMarshal(kind Kind, data []byte) (content interface{}, err error) {
 	return
 }
 
+// Marshal 函数的别名
+// Marshal function link name
+func RawToByte(kind Kind, content interface{}) (data []byte, err error) {
+	return Marshal(kind, content)
+}
+
+// UnMarshal 函数的别名
+// UnMarshal function link name
+func ByteToRaw(kind Kind, data []byte) (content interface{}, err error) {
+	return UnMarshal(kind, data)
+}
 
