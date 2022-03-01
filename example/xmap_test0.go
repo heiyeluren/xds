@@ -15,6 +15,39 @@ import (
 // 把Xmap当做普通map来使用
 // 说明：类型不限制，初始化必须设定好数据类型，写入数据必须与这个数据类型一致，类似于 map[KeyType]ValType 必须相互符合
 // -----------------------------------
+/*
+目前支持的类似于 map[keyType][valType] key value 类型如下：
+就是调用：m, err := xds.NewMap(mm, xmap.String, xmap.Int) 后面的两个 keyType 和 valType 类型定义如下：
+const (
+	Invalid Kind = iota
+	Bool
+	Int
+	Int8
+	Int16
+	Int32
+	Int64
+	Uint
+	Uint8
+	Uint16
+	Uint32
+	Uint64
+	Uintptr
+	Float32
+	Float64
+	Complex64
+	Complex128
+	Array
+	Chan
+	Func
+	Interface
+	Map
+	Ptr
+	ByteSlice
+	String
+	Struct
+	UnsafePointer
+)
+*/
 func TestMap(mm xmm.XMemory) {
 
 	// 初始化xmap的时候必须制定key和val的数据类型，数据类型是在xmap中定义的
