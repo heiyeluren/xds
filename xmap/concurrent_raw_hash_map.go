@@ -31,6 +31,7 @@ import (
 	"github.com/heiyeluren/xds/xmap/entry"
 )
 
+
 // MinTransferStride is the minimum number of entries to transfer between
 // 1、步长resize
 // 2、sizeCtl增加cap的cas，不允许提前resize。
@@ -51,6 +52,7 @@ var _BucketPtrSize = unsafe.Sizeof(&Bucket{})
 var _NodeEntrySize = unsafe.Sizeof(entry.NodeEntry{})
 var _TreeSize = unsafe.Sizeof(entry.Tree{})
 var uintPtrSize = uintptr(8)
+
 
 // ConcurrentRawHashMap is a concurrent hash map with a fixed number of buckets.
 // 清理方式：1、del清除entry(简单)
@@ -77,6 +79,7 @@ type ConcurrentRawHashMap struct {
 	transferIndex uint64
 }
 
+
 // Bucket is a hash bucket.
 type Bucket struct {
 	forwarding bool // 已经迁移完成
@@ -89,6 +92,7 @@ type Bucket struct {
 	size       uint64
 }
 
+
 // ForwardingBucket is a hash bucket that has been forwarded to a new table.
 type ForwardingBucket struct {
 	forwarding bool // 已经迁移完成
@@ -97,12 +101,16 @@ type ForwardingBucket struct {
 	newBulks   *[]uintptr
 }
 
+
 // Snapshot 利用快照比对产生
 type Snapshot struct {
 	bulks     *[]uintptr
 	sizeCtl   int64 // -1 正在扩容
 	nextBulks *[]uintptr
 }
+
+
+
 
 // NewDefaultConcurrentRawHashMap returns a new ConcurrentRawHashMap with the default
 // mm: xmm
@@ -835,3 +843,4 @@ func BKDRHashWithSpread(str []byte) uint64 {
 	}
 	return hash ^ (hash>>16)&0x7FFFFFFF
 }
+
