@@ -121,13 +121,14 @@ f := &xmm.Factory{}
 mm, err := f.CreateMemory(0.75)
 
 // 构建一个 map[string]string 的 xmap
-m, err := xds.NewMap(mm, xmap.String, xmap.String)
+m, err := xmap.NewMap(mm, xds.String, xds.String)
 
 // 写入、读取、删除一个元素
 err = m.Set("name", "heiyeluren")
 ret, key_exists, err := m.Get("name")
 err = m.Remove("name")
 //...
+
 ```
 
 3. 执行对应代码
