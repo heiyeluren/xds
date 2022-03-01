@@ -36,12 +36,10 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-
-	"github.com/heiyeluren/xmm"
-
 	// "xds/xmap/entry"
 	"github.com/spf13/cast"
-
+	"github.com/heiyeluren/xmm"
+	"github.com/heiyeluren/xds"	
 	"github.com/heiyeluren/xds/xmap/entry"
 )
 
@@ -260,7 +258,7 @@ func Test_NewDefaultConcurrentHashMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chmp, err := NewDefaultConcurrentHashMap(mm, Uintptr, Uintptr)
+	chmp, err := NewDefaultConcurrentHashMap(mm, xds.Uintptr, xds.Uintptr)
 	if err != nil {
 		t.Fatal(err)
 	}

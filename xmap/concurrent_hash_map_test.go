@@ -30,12 +30,9 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-
-	"github.com/heiyeluren/xmm"
-
 	// "xds/xmap/entry"
+	"github.com/heiyeluren/xmm"
 	"github.com/spf13/cast"
-
 	"github.com/heiyeluren/xds/xmap/entry"
 )
 

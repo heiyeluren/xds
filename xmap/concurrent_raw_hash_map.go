@@ -27,9 +27,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"unsafe"
-
 	"github.com/heiyeluren/xmm"
-
 	"github.com/heiyeluren/xds/xmap/entry"
 )
 
