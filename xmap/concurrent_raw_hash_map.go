@@ -21,16 +21,15 @@ package xmap
 import (
 	"bytes"
 	"errors"
+	"github.com/heiyeluren/xds/xmap/entry"
+	"github.com/heiyeluren/xmm"
 	"log"
 	"reflect"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
-	"github.com/heiyeluren/xmm"
-	"github.com/heiyeluren/xds/xmap/entry"
 )
-
 
 // MinTransferStride is the minimum number of entries to transfer between
 // 1、步长resize
@@ -48,15 +47,13 @@ const KeyNotExists = false
 var NotFound = errors.New("not found")
 var _BucketSize = unsafe.Sizeof(Bucket{})
 var _ForwardingBucketSize = unsafe.Sizeof(ForwardingBucket{})
-var _BucketPtrSize = unsafe.Sizeof(&Bucket{})
 var _NodeEntrySize = unsafe.Sizeof(entry.NodeEntry{})
 var _TreeSize = unsafe.Sizeof(entry.Tree{})
 var uintPtrSize = uintptr(8)
 
-
 // ConcurrentRawHashMap is a concurrent hash map with a fixed number of buckets.
 // 清理方式：1、del清除entry(简单)
-// 		2、bulks清除旧的（resize结束，并无get读引用【引入重试来解决该问题】）
+// 		2、buckets清除旧的（resize结束，并无get读引用【引入重试来解决该问题】）
 // 		3、Bucket清除
 // 		4、ForwardingBucket清除
 // 		5、Tree 清除（spliceEntry2时候）
@@ -65,9 +62,9 @@ type ConcurrentRawHashMap struct {
 	threshold uint64
 	initCap   uint64
 	// off-heap
-	bulks *[]uintptr
-	mm    xmm.XMemory
-	lock  sync.RWMutex
+	buckets *[]uintptr
+	mm      xmm.XMemory
+	lock    sync.RWMutex
 
 	treeSize uint64
 
@@ -75,42 +72,40 @@ type ConcurrentRawHashMap struct {
 	sizeCtl   int64 // -1 正在扩容
 	reSizeGen uint64
 
-	nextBulks     *[]uintptr
+	nextBuckets   *[]uintptr
 	transferIndex uint64
-}
 
+	destroyed uint32 // 0:未销毁   1:已经销毁
+
+	destroyLock sync.RWMutex
+}
 
 // Bucket is a hash bucket.
 type Bucket struct {
 	forwarding bool // 已经迁移完成
 	rwLock     sync.RWMutex
 	index      uint64
-	newBulks   *[]uintptr
+	newBuckets *[]uintptr
 	Head       *entry.NodeEntry
 	Tree       *entry.Tree
 	isTree     bool
 	size       uint64
 }
 
-
 // ForwardingBucket is a hash bucket that has been forwarded to a new table.
 type ForwardingBucket struct {
 	forwarding bool // 已经迁移完成
 	rwLock     sync.RWMutex
 	index      uint64
-	newBulks   *[]uintptr
+	newBuckets *[]uintptr
 }
-
 
 // Snapshot 利用快照比对产生
 type Snapshot struct {
-	bulks     *[]uintptr
-	sizeCtl   int64 // -1 正在扩容
-	nextBulks *[]uintptr
+	buckets     *[]uintptr
+	sizeCtl     int64 // -1 正在扩容
+	nextBuckets *[]uintptr
 }
-
-
-
 
 // NewDefaultConcurrentRawHashMap returns a new ConcurrentRawHashMap with the default
 // mm: xmm
@@ -132,59 +127,59 @@ func NewConcurrentRawHashMap(mm xmm.XMemory, cap uintptr, fact float64, treeSize
 		alignCap = 1 << uint(i)
 	}
 	cap = alignCap
-	bulksPtr, err := mm.AllocSlice(uintPtrSize, cap, cap)
+	bucketsPtr, err := mm.AllocSlice(uintPtrSize, cap, cap)
 	if err != nil {
 		return nil, err
 	}
-	bulks := (*[]uintptr)(bulksPtr)
-	return &ConcurrentRawHashMap{bulks: bulks, initCap: uint64(cap), threshold: uint64(float64(cap) * fact),
+	buckets := (*[]uintptr)(bucketsPtr)
+	return &ConcurrentRawHashMap{buckets: buckets, initCap: uint64(cap), threshold: uint64(float64(cap) * fact),
 		mm: mm, treeSize: treeSize}, nil
 }
 
-func (chm *ConcurrentRawHashMap) getBulk(h uint64, tab *[]uintptr) *Bucket {
+func (chm *ConcurrentRawHashMap) getBucket(h uint64, tab *[]uintptr) *Bucket {
 	mask := uint64(cap(*tab) - 1)
 	idx := h & mask
-	_, _, bulk := chm.tabAt(tab, idx)
-	if bulk != nil && bulk.forwarding && chm.transferIndex >= 0 {
-		return chm.getBulk(h, bulk.newBulks)
+	_, _, bucket := chm.tabAt(tab, idx)
+	if bucket != nil && bucket.forwarding && chm.transferIndex >= 0 {
+		return chm.getBucket(h, bucket.newBuckets)
 	}
-	return bulk
+	return bucket
 }
 
 // Get Fetch key from hashmap
 func (chm *ConcurrentRawHashMap) Get(key []byte) (val []byte, keyExists bool, err error) {
 	h := BKDRHashWithSpread(key)
-	bulk := chm.getBulk(h, chm.bulks)
-	if bulk == nil {
+	bucket := chm.getBucket(h, chm.buckets)
+	if bucket == nil {
 		return nil, KeyNotExists, NotFound
 	}
-	if bulk.isTree {
-		exist, value := bulk.Tree.Get(key)
+	if bucket.isTree {
+		exist, value := bucket.Tree.Get(key)
 		if !exist {
 			return nil, KeyNotExists, NotFound
 		}
 		return value, KeyExists, nil
 	}
 	keySize := len(key)
-	for cNode := bulk.Head; cNode != nil; cNode = cNode.Next {
+	for cNode := bucket.Head; cNode != nil; cNode = cNode.Next {
 		if keySize == len(cNode.Key) && bytes.Compare(key, cNode.Key) == 0 {
 			return cNode.Value, KeyExists, nil
 		}
 	}
 	return nil, KeyNotExists, NotFound
 }
-func (chm *ConcurrentRawHashMap) initForwardingEntries(newBulks *[]uintptr, index uint64) (*ForwardingBucket, error) {
+func (chm *ConcurrentRawHashMap) initForwardingEntries(newBuckets *[]uintptr, index uint64) (*ForwardingBucket, error) {
 	entriesPtr, err := chm.mm.Alloc(_ForwardingBucketSize)
 	if err != nil {
 		return nil, err
 	}
 	entries := (*ForwardingBucket)(entriesPtr)
-	chm.assignmentForwardingEntries(newBulks, entries, index)
+	chm.assignmentForwardingEntries(newBuckets, entries, index)
 	return entries, nil
 }
 
-func (chm *ConcurrentRawHashMap) assignmentForwardingEntries(newBulks *[]uintptr, entries *ForwardingBucket, index uint64) {
-	entries.newBulks = newBulks
+func (chm *ConcurrentRawHashMap) assignmentForwardingEntries(newBuckets *[]uintptr, entries *ForwardingBucket, index uint64) {
+	entries.newBuckets = newBuckets
 	entries.index = index
 	entries.forwarding = true
 }
@@ -221,43 +216,43 @@ func (chm *ConcurrentRawHashMap) resizeStamp(length uint64) (stride int64) {
 	return -10000 - int64(length)
 }
 
-func (chm *ConcurrentRawHashMap) helpTransform(entry *entry.NodeEntry, bulk *Bucket, tab *[]uintptr) (currentBulk *Bucket, init bool, currentTab *[]uintptr, err error) {
-	if bulk != nil && bulk.forwarding {
+func (chm *ConcurrentRawHashMap) helpTransform(entry *entry.NodeEntry, bucket *Bucket, tab *[]uintptr) (currentBucket *Bucket, init bool, currentTab *[]uintptr, err error) {
+	if bucket != nil && bucket.forwarding {
 		if err := chm.reHashSize(tab); err != nil {
 			return nil, init, nil, err
 		}
-		tabPtr := bulk.newBulks
-		bulk, swapped, err := chm.getAndInitBulk(entry, tabPtr)
+		tabPtr := bucket.newBuckets
+		bucket, swapped, err := chm.getAndInitBucket(entry, tabPtr)
 		if err != nil {
 			return nil, init, nil, err
 		}
 		if swapped {
 			return nil, true, nil, err
 		}
-		return bulk, init, tabPtr, nil
+		return bucket, init, tabPtr, nil
 	}
-	return bulk, init, tab, nil
+	return bucket, init, tab, nil
 }
 
-func (chm *ConcurrentRawHashMap) indexAndInitBulk(entry *entry.NodeEntry) (entries *Bucket, init bool, tabPtr *[]uintptr, err error) {
-	tabPtr = chm.bulks
-	bulk, swapped, err := chm.getAndInitBulk(entry, tabPtr)
+func (chm *ConcurrentRawHashMap) indexAndInitBucket(entry *entry.NodeEntry) (entries *Bucket, init bool, tabPtr *[]uintptr, err error) {
+	tabPtr = chm.buckets
+	bucket, swapped, err := chm.getAndInitBucket(entry, tabPtr)
 	if err != nil {
 		return nil, init, nil, err
 	}
 	if swapped {
-		return bulk, true, tabPtr, nil
+		return bucket, true, tabPtr, nil
 	}
-	if bulk != nil && bulk.forwarding && chm.transferIndex >= 0 {
-		bulk, swapped, tabPtr, err = chm.helpTransform(entry, bulk, tabPtr)
+	if bucket != nil && bucket.forwarding && chm.transferIndex >= 0 {
+		bucket, swapped, tabPtr, err = chm.helpTransform(entry, bucket, tabPtr)
 		if err != nil {
 			return nil, init, nil, err
 		}
 		if swapped {
-			return bulk, true, tabPtr, nil
+			return bucket, true, tabPtr, nil
 		}
 	}
-	return bulk, init, tabPtr, nil
+	return bucket, init, tabPtr, nil
 }
 
 func (chm *ConcurrentRawHashMap) index(h uint64, length int) uint64 {
@@ -265,24 +260,24 @@ func (chm *ConcurrentRawHashMap) index(h uint64, length int) uint64 {
 	return idx
 }
 
-func (chm *ConcurrentRawHashMap) tabAt(bulks *[]uintptr, idx uint64) (*uintptr, uintptr, *Bucket) {
-	addr := &((*bulks)[idx])
+func (chm *ConcurrentRawHashMap) tabAt(buckets *[]uintptr, idx uint64) (*uintptr, uintptr, *Bucket) {
+	addr := &((*buckets)[idx])
 	ptr := atomic.LoadUintptr(addr)
 	if ptr == 0 {
 		return addr, ptr, nil
 	}
-	bulk := (*Bucket)(unsafe.Pointer(ptr))
-	return addr, ptr, bulk
+	bucket := (*Bucket)(unsafe.Pointer(ptr))
+	return addr, ptr, bucket
 }
 
-// cas 设置bulk
-func (chm *ConcurrentRawHashMap) getAndInitBulk(entry *entry.NodeEntry, tabPtr *[]uintptr) (bulk *Bucket, swapped bool, err error) {
+// cas 设置bucket
+func (chm *ConcurrentRawHashMap) getAndInitBucket(entry *entry.NodeEntry, tabPtr *[]uintptr) (bucket *Bucket, swapped bool, err error) {
 	h := entry.Hash
 	idx := chm.index(h, cap(*tabPtr))
 	// retry := 10改小后，出现该问题。
-	addr, _, bulk := chm.tabAt(tabPtr, idx)
-	if bulk != nil {
-		return bulk, false, nil
+	addr, _, bucket := chm.tabAt(tabPtr, idx)
+	if bucket != nil {
+		return bucket, false, nil
 	}
 	entity, err := chm.initEntries(entry, idx)
 	if err != nil {
@@ -290,8 +285,8 @@ func (chm *ConcurrentRawHashMap) getAndInitBulk(entry *entry.NodeEntry, tabPtr *
 	}
 	ptr := uintptr(unsafe.Pointer(entity))
 	atomic.CompareAndSwapUintptr(addr, 0, ptr)
-	bulk = (*Bucket)(unsafe.Pointer(atomic.LoadUintptr(addr)))
-	return bulk, swapped, nil
+	bucket = (*Bucket)(unsafe.Pointer(atomic.LoadUintptr(addr)))
+	return bucket, swapped, nil
 }
 
 func (chm *ConcurrentRawHashMap) increaseSize() (newSize uint64) {
@@ -352,7 +347,7 @@ func (chm *ConcurrentRawHashMap) putVal(key []byte, val []byte, h uint64) (*[]ui
 	loop := true
 	var tabPtr *[]uintptr
 	for loop {
-		bulk, init, newTabPtr, err := chm.indexAndInitBulk(node)
+		bucket, init, newTabPtr, err := chm.indexAndInitBucket(node)
 		if err != nil {
 			return nil, err
 		}
@@ -360,7 +355,7 @@ func (chm *ConcurrentRawHashMap) putVal(key []byte, val []byte, h uint64) (*[]ui
 		if init {
 			break
 		}
-		if loop, err = chm.PutBulkValue(bulk, node, tabPtr); err != nil {
+		if loop, err = chm.PutBucketValue(bucket, node, tabPtr); err != nil {
 			return nil, err
 		}
 	}
@@ -391,43 +386,43 @@ func (chm *ConcurrentRawHashMap) Del(key []byte) error {
 func (chm *ConcurrentRawHashMap) delVal(key []byte, h uint64) error {
 	loop := true
 	var tabPtr *[]uintptr
-	tabPtr = chm.bulks
+	tabPtr = chm.buckets
 	for loop {
 		idx := chm.index(h, cap(*tabPtr))
-		_, _, bulk := chm.tabAt(tabPtr, idx)
-		if bulk == nil {
+		_, _, bucket := chm.tabAt(tabPtr, idx)
+		if bucket == nil {
 			return nil
 		}
-		if bulk != nil && bulk.forwarding {
+		if bucket != nil && bucket.forwarding {
 			if err := chm.reHashSize(tabPtr); err != nil {
 				return err
 			}
-			tabPtr = bulk.newBulks
+			tabPtr = bucket.newBuckets
 			idx = chm.index(h, cap(*tabPtr))
-			_, _, bulk = chm.tabAt(tabPtr, idx)
+			_, _, bucket = chm.tabAt(tabPtr, idx)
 			continue
 		}
 		var removeNode *entry.NodeEntry
 		func() {
-			// 删除bulk中的数目
-			bulk.rwLock.Lock()
-			defer bulk.rwLock.Unlock()
-			_, _, newBulk := chm.tabAt(tabPtr, chm.index(h, cap(*tabPtr)))
-			if newBulk != bulk || (bulk != nil && bulk.forwarding) {
+			// 删除bucket中的数目
+			bucket.rwLock.Lock()
+			defer bucket.rwLock.Unlock()
+			_, _, newBucket := chm.tabAt(tabPtr, chm.index(h, cap(*tabPtr)))
+			if newBucket != bucket || (bucket != nil && bucket.forwarding) {
 				return
 			}
-			if bulk.isTree {
-				if node := bulk.Tree.Delete(key); node != nil {
+			if bucket.isTree {
+				if node := bucket.Tree.Delete(key); node != nil {
 					removeNode = node
 				}
 			} else {
 				keySize := len(key)
 				var pre *entry.NodeEntry
-				for cNode := bulk.Head; cNode != nil; cNode = cNode.Next {
+				for cNode := bucket.Head; cNode != nil; cNode = cNode.Next {
 					if keySize == len(cNode.Key) && bytes.Compare(key, cNode.Key) == 0 {
 						removeNode = cNode
 						if pre == nil {
-							bulk.Head = cNode.Next
+							bucket.Head = cNode.Next
 						} else {
 							pre.Next = cNode.Next
 						}
@@ -446,6 +441,7 @@ func (chm *ConcurrentRawHashMap) delVal(key []byte, h uint64) error {
 	return nil
 }
 
+// freeEntry todo 异步free
 func (chm *ConcurrentRawHashMap) freeEntry(removeNode *entry.NodeEntry) error {
 	if removeNode == nil {
 		return nil
@@ -463,51 +459,51 @@ func (chm *ConcurrentRawHashMap) freeEntry(removeNode *entry.NodeEntry) error {
 	return nil
 }
 
-func (chm *ConcurrentRawHashMap) growTree(bulk *Bucket) error {
-	if bulk.isTree || bulk.size < chm.treeSize {
+func (chm *ConcurrentRawHashMap) growTree(bucket *Bucket) error {
+	if bucket.isTree || bucket.size < chm.treeSize {
 		return nil
 	}
 	treePtr, err := chm.mm.Alloc(_TreeSize)
 	if err != nil {
 		return err
 	}
-	bulk.Tree = (*entry.Tree)(treePtr)
-	bulk.Tree.SetComparator(entry.BytesAscSort)
-	for node := bulk.Head; node != nil; {
+	bucket.Tree = (*entry.Tree)(treePtr)
+	bucket.Tree.SetComparator(entry.BytesAscSort)
+	for node := bucket.Head; node != nil; {
 		next := node.Next
-		if err := bulk.Tree.Put(node); err != nil {
+		if err := bucket.Tree.Put(node); err != nil {
 			return err
 		}
 		node = next
 	}
-	bulk.Head = nil
-	bulk.isTree = true
+	bucket.Head = nil
+	bucket.isTree = true
 	return nil
 }
 
-// PutBulkValue table的可见性问题，并发问题。
-func (chm *ConcurrentRawHashMap) PutBulkValue(bulk *Bucket, node *entry.NodeEntry, tab *[]uintptr) (loop bool, err error) {
-	bulk.rwLock.Lock()
-	defer bulk.rwLock.Unlock()
+// PutBucketValue table的可见性问题，并发问题。
+func (chm *ConcurrentRawHashMap) PutBucketValue(bucket *Bucket, node *entry.NodeEntry, tab *[]uintptr) (loop bool, err error) {
+	bucket.rwLock.Lock()
+	defer bucket.rwLock.Unlock()
 	idx := chm.index(node.Hash, cap(*tab))
-	_, _, newBulk := chm.tabAt(tab, idx)
-	if newBulk != bulk || newBulk.forwarding {
+	_, _, newBucket := chm.tabAt(tab, idx)
+	if newBucket != bucket || newBucket.forwarding {
 		return true, nil
 	}
-	bulk = newBulk
+	bucket = newBucket
 	// 树化
-	if err := chm.growTree(bulk); err != nil {
+	if err := chm.growTree(bucket); err != nil {
 		return false, err
 	}
-	if bulk.isTree {
-		if err := bulk.Tree.Put(node); err != nil {
+	if bucket.isTree {
+		if err := bucket.Tree.Put(node); err != nil {
 			return false, err
 		}
 		return false, nil
 	}
 	key, val := node.Key, node.Value
 	var last *entry.NodeEntry
-	for node := bulk.Head; node != nil; node = node.Next {
+	for node := bucket.Head; node != nil; node = node.Next {
 		if len(key) == len(node.Key) && bytes.Compare(node.Key, key) == 0 {
 			node.Value = val
 			return false, nil
@@ -516,10 +512,10 @@ func (chm *ConcurrentRawHashMap) PutBulkValue(bulk *Bucket, node *entry.NodeEntr
 			last = node
 		}
 	}
-	bulk.size += 1
+	bucket.size += 1
 	// 加入
 	if last == nil {
-		bulk.Head = node
+		bucket.Head = node
 		return false, nil
 	}
 	last.Next = node
@@ -527,41 +523,41 @@ func (chm *ConcurrentRawHashMap) PutBulkValue(bulk *Bucket, node *entry.NodeEntr
 }
 
 func (chm *ConcurrentRawHashMap) expandCap(tab *[]uintptr) (s *Snapshot, need bool) {
-	old, size, transferIndex, threshold := uint64(cap(*chm.bulks)), atomic.LoadUint64(&chm.size),
+	old, size, transferIndex, threshold := uint64(cap(*chm.buckets)), atomic.LoadUint64(&chm.size),
 		atomic.LoadUint64(&chm.transferIndex), atomic.LoadUint64(&chm.threshold)
 	if size < threshold || transferIndex >= old {
 		return nil, false
 	}
-	nextBulks, bulks, sizeCtl := chm.nextBulks, chm.bulks, atomic.LoadInt64(&chm.sizeCtl)
+	nextBuckets, buckets, sizeCtl := chm.nextBuckets, chm.buckets, atomic.LoadInt64(&chm.sizeCtl)
 	// 正在扩容
-	if sizeCtl < 0 && nextBulks != nil && cap(*nextBulks) == int(old)*2 {
+	if sizeCtl < 0 && nextBuckets != nil && cap(*nextBuckets) == int(old)*2 {
 		if sizeCtl >= 0 {
 			return nil, false
 		}
 		// 当前扩容状态正确，开始扩容
-		if unsafe.Pointer(tab) == unsafe.Pointer(bulks) && nextBulks != nil {
+		if unsafe.Pointer(tab) == unsafe.Pointer(buckets) && nextBuckets != nil {
 			if atomic.CompareAndSwapInt64(&chm.sizeCtl, sizeCtl, sizeCtl+1) {
-				return &Snapshot{bulks: bulks, sizeCtl: sizeCtl, nextBulks: nextBulks}, true
+				return &Snapshot{buckets: buckets, sizeCtl: sizeCtl, nextBuckets: nextBuckets}, true
 			}
 		}
 		return nil, false
 	}
 	// 未开始扩容的判断
-	if sizeCtl >= 0 && (old<<1) > uint64(sizeCtl) && unsafe.Pointer(tab) == unsafe.Pointer(bulks) {
+	if sizeCtl >= 0 && (old<<1) > uint64(sizeCtl) && unsafe.Pointer(tab) == unsafe.Pointer(buckets) {
 		newSizeCtl := chm.resizeStamp(old) + 2
 		swapped := atomic.CompareAndSwapInt64(&chm.sizeCtl, sizeCtl, newSizeCtl)
 		// 开始扩容
 		if swapped {
 			newCap := old << 1
-			bulksPtr, err := chm.mm.AllocSlice(uintPtrSize, uintptr(newCap), uintptr(newCap))
+			bucketsPtr, err := chm.mm.AllocSlice(uintPtrSize, uintptr(newCap), uintptr(newCap))
 			if err != nil {
 				log.Printf("ConcurrentRawHashMap chm.mm.Alloc newCap:%d  err:%s \n", newCap, err)
 				return nil, false
 			}
-			nextBulks = (*[]uintptr)(bulksPtr)
-			chm.nextBulks = nextBulks
+			nextBuckets = (*[]uintptr)(bucketsPtr)
+			chm.nextBuckets = nextBuckets
 			chm.transferIndex = 0
-			return &Snapshot{bulks: bulks, sizeCtl: sizeCtl, nextBulks: nextBulks}, true
+			return &Snapshot{buckets: buckets, sizeCtl: sizeCtl, nextBuckets: nextBuckets}, true
 		}
 		return nil, false
 	}
@@ -574,10 +570,10 @@ func (chm *ConcurrentRawHashMap) reHashSize(tab *[]uintptr) error {
 	if !need {
 		return nil
 	}
-	currentCap := uint64(cap(*snapshot.bulks))
-	bulks := snapshot.nextBulks
-	// 取当前内容oldBulks，在oldBulks中利用bulk的lock来避免同时操作。
-	err := chm.reSizeBulks(snapshot)
+	currentCap := uint64(cap(*snapshot.buckets))
+	buckets := snapshot.nextBuckets
+	// 取当前内容oldBuckets，在oldBuckets中利用bucket的lock来避免同时操作。
+	err := chm.reSizeBuckets(snapshot)
 	if err != nil {
 		return err
 	}
@@ -594,22 +590,20 @@ func (chm *ConcurrentRawHashMap) reHashSize(tab *[]uintptr) error {
 		}
 	}
 	return func() error {
-		oldBulks, tabPtr := chm.bulks, unsafe.Pointer(&chm.bulks)
-		bulksAddr := (*unsafe.Pointer)(tabPtr)
-		old := (*reflect.SliceHeader)(atomic.LoadPointer(bulksAddr))
+		oldBuckets, tabPtr := chm.buckets, unsafe.Pointer(&chm.buckets)
+		bucketsAddr := (*unsafe.Pointer)(tabPtr)
+		old := (*reflect.SliceHeader)(atomic.LoadPointer(bucketsAddr))
 		if old.Cap != int(currentCap) {
 			return nil
 		}
-		if atomic.CompareAndSwapPointer(bulksAddr, unsafe.Pointer(old), unsafe.Pointer(bulks)) {
+		if atomic.CompareAndSwapPointer(bucketsAddr, unsafe.Pointer(old), unsafe.Pointer(buckets)) {
 			// 更换内容赋值
-			chm.nextBulks = nil
+			chm.nextBuckets = nil
 			newCap := currentCap << 1
 			atomic.StoreInt64(&chm.sizeCtl, int64(newCap))
 			chm.threshold = chm.threshold << 1
 			chm.reSizeGen += 1
-			xmm.TestBbulks = uintptr(unsafe.Pointer(chm.bulks))
-			// fmt.Println(unsafe.Pointer(chm.bulks), xmm.TestBbulks, len(*chm.bulks))
-			if err := chm.freeBuckets(oldBulks); err != nil {
+			if err := chm.freeBuckets(oldBuckets); err != nil {
 				log.Printf("freeBuckets err:%s\n", err)
 			}
 			return err
@@ -619,12 +613,12 @@ func (chm *ConcurrentRawHashMap) reHashSize(tab *[]uintptr) error {
 }
 
 /*
-todo 清除内存
-bulks清除旧的（resize结束，并无get读引用【引入重试来解决该问题】）
+todo 异步free  清除内存
+buckets清除旧的（resize结束，并无get读引用【引入重试来解决该问题】）
 3、Bucket清除
-4、ForwardingBucket清除*/
-func (chm *ConcurrentRawHashMap) freeBuckets(bulks *[]uintptr) error {
-	for _, ptr := range *bulks {
+4、元素清除*/
+func (chm *ConcurrentRawHashMap) freeBuckets(buckets *[]uintptr) error {
+	for _, ptr := range *buckets {
 		if ptr < 1 {
 			continue
 		}
@@ -632,7 +626,7 @@ func (chm *ConcurrentRawHashMap) freeBuckets(bulks *[]uintptr) error {
 			log.Printf("freeBuckets Free element(%d) err:%s\n", ptr, err)
 		}
 	}
-	if err := chm.mm.Free(uintptr(unsafe.Pointer(bulks))); err != nil {
+	if err := chm.mm.Free(uintptr(unsafe.Pointer(buckets))); err != nil {
 		return err
 	}
 	return nil
@@ -651,8 +645,8 @@ func (chm *ConcurrentRawHashMap) increaseTransferIndex(cap uint64, stride uint64
 	}
 }
 
-func (chm *ConcurrentRawHashMap) reSizeBulks(s *Snapshot) error {
-	newBulks, oldBulks, currentCap := s.nextBulks, s.bulks, uint64(cap(*s.bulks))
+func (chm *ConcurrentRawHashMap) reSizeBuckets(s *Snapshot) error {
+	newBuckets, oldBuckets, currentCap := s.nextBuckets, s.buckets, uint64(cap(*s.buckets))
 	for {
 		stride := chm.getStride(currentCap)
 		offset, over := chm.increaseTransferIndex(currentCap, stride)
@@ -667,12 +661,12 @@ func (chm *ConcurrentRawHashMap) reSizeBulks(s *Snapshot) error {
 			var err error
 			loop := true
 			for loop {
-				addr := &((*oldBulks)[index])
+				addr := &((*oldBuckets)[index])
 				entries := (*Bucket)(unsafe.Pointer(atomic.LoadUintptr(addr)))
 				if entries == nil {
-					forwardingEntries, err := chm.initForwardingEntries(newBulks, index)
+					forwardingEntries, err := chm.initForwardingEntries(newBuckets, index)
 					if err != nil {
-						log.Printf("ERROR reSizeBulk initForwardingEntries err:%s\n", err)
+						log.Printf("ERROR reSizeBucket initForwardingEntries err:%s\n", err)
 						return err
 					}
 					ptr := uintptr(unsafe.Pointer(forwardingEntries))
@@ -682,8 +676,8 @@ func (chm *ConcurrentRawHashMap) reSizeBulks(s *Snapshot) error {
 						entries = (*Bucket)(unsafe.Pointer(atomic.LoadUintptr(addr)))
 					}
 				}
-				if loop, err = chm.reSizeBulk(entries, s); err != nil {
-					log.Printf("ERROR reSizeBulk  oldEntries err:%s\n", err)
+				if loop, err = chm.reSizeBucket(entries, s); err != nil {
+					log.Printf("ERROR reSizeBucket  oldEntries err:%s\n", err)
 				}
 			}
 		}
@@ -715,20 +709,20 @@ func (c *Chain) GetHead() *entry.NodeEntry {
 	return c.Head
 }
 
-func (chm *ConcurrentRawHashMap) reSizeBulk(entries *Bucket, s *Snapshot) (loop bool, err error) {
+func (chm *ConcurrentRawHashMap) reSizeBucket(entries *Bucket, s *Snapshot) (loop bool, err error) {
 	entries.rwLock.Lock()
 	defer entries.rwLock.Unlock()
-	oldBulks, newBulks := s.bulks, s.nextBulks
-	currentCap := uint64(cap(*s.bulks))
-	tabPtr, nextTabPtr := unsafe.Pointer(s.bulks), unsafe.Pointer(s.nextBulks)
-	_, _, currentEntries := chm.tabAt(oldBulks, entries.index)
-	// 判断newBulks为chm.newBulks,判断newBulks为chm.newBulks
-	if entries.forwarding || tabPtr != unsafe.Pointer(chm.bulks) ||
-		nextTabPtr != unsafe.Pointer(chm.nextBulks) || entries != currentEntries {
+	oldBuckets, newBuckets := s.buckets, s.nextBuckets
+	currentCap := uint64(cap(*s.buckets))
+	tabPtr, nextTabPtr := unsafe.Pointer(s.buckets), unsafe.Pointer(s.nextBuckets)
+	_, _, currentEntries := chm.tabAt(oldBuckets, entries.index)
+	// 判断newBuckets为chm.newBuckets,判断newBuckets为chm.newBuckets
+	if entries.forwarding || tabPtr != unsafe.Pointer(chm.buckets) ||
+		nextTabPtr != unsafe.Pointer(chm.nextBuckets) || entries != currentEntries {
 		return false, nil
 	}
 	if entries != nil && ((!entries.isTree && entries.Head == nil) || (entries.isTree && entries.Tree == nil)) {
-		entries.newBulks = newBulks
+		entries.newBuckets = newBuckets
 		entries.forwarding = true
 		return false, nil
 	}
@@ -745,13 +739,13 @@ func (chm *ConcurrentRawHashMap) reSizeBulk(entries *Bucket, s *Snapshot) (loop 
 	}
 	if oldBucket != nil {
 		oldBucket.index = oldIndex
-		(*newBulks)[oldIndex] = uintptr(unsafe.Pointer(oldBucket))
+		(*newBuckets)[oldIndex] = uintptr(unsafe.Pointer(oldBucket))
 	}
 	if newBucket != nil {
 		newBucket.index = newIndex
-		(*newBulks)[newIndex] = uintptr(unsafe.Pointer(newBucket))
+		(*newBuckets)[newIndex] = uintptr(unsafe.Pointer(newBucket))
 	}
-	entries.newBulks = newBulks
+	entries.newBuckets = newBuckets
 	entries.forwarding = true
 	entries.Head = nil
 	return false, nil
@@ -779,7 +773,7 @@ func (chm *ConcurrentRawHashMap) spliceEntry2(entries *Bucket, mask uint64) (old
 		var oldChains, newChains Chain
 		chm.TreeSplice(entries.Tree.GetRoot(), index, mask, &oldChains, &newChains)
 		oldHead, newHead = oldChains.GetHead(), newChains.GetHead()
-		// todo 删除现在的tree内容
+		//  删除现在的tree内容
 		if err := chm.mm.Free(uintptr(unsafe.Pointer(entries.Tree))); err != nil {
 			return nil, nil, err
 		}
@@ -834,13 +828,56 @@ func (chm *ConcurrentRawHashMap) spliceBucket2(old *entry.NodeEntry, new *entry.
 	return
 }
 
-// BKDRHashWithSpread .
+func (chm *ConcurrentRawHashMap) indexBucket(idx int, tab *[]uintptr) (bucket *Bucket, outIndex bool) {
+	if idx >= cap(*tab) {
+		return nil, false
+	}
+	_, _, bucket = chm.tabAt(tab, uint64(idx))
+	if bucket != nil && bucket.forwarding && chm.transferIndex >= 0 {
+		return chm.indexBucket(idx, bucket.newBuckets)
+	}
+	return bucket, true
+}
+
+func (chm *ConcurrentRawHashMap) ForEach(fun func(key, val []byte) error) error {
+	bucket, exist := chm.indexBucket(0, chm.buckets)
+	for i := 1; exist; i++ {
+		if bucket != nil {
+			if tree := bucket.Tree; bucket.isTree && tree != nil {
+				if err := chm.TreeForEach(fun, tree.GetRoot()); err != nil {
+					return err
+				}
+			} else {
+				for cNode := bucket.Head; cNode != nil; cNode = cNode.Next {
+					if err := fun(cNode.Key, cNode.Value); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		bucket, exist = chm.indexBucket(i, chm.buckets)
+	}
+	return nil
+}
+
+func (chm *ConcurrentRawHashMap) TreeForEach(fun func(key, val []byte) error, node *entry.NodeEntry) error {
+	if node == nil {
+		return nil
+	}
+	if err := fun(node.Key, node.Value); err != nil {
+		return err
+	}
+	chm.TreeForEach(fun, node.Left())
+	chm.TreeForEach(fun, node.Right())
+	return nil
+}
+
+// BKDRHashWithSpread .   31 131 1313 13131 131313 etc..
 func BKDRHashWithSpread(str []byte) uint64 {
-	seed := uint64(131) // 31 131 1313 13131 131313 etc..
+	seed := uint64(131)
 	hash := uint64(0)
 	for i := 0; i < len(str); i++ {
 		hash = (hash * seed) + uint64(str[i])
 	}
 	return hash ^ (hash>>16)&0x7FFFFFFF
 }
-

@@ -16,12 +16,14 @@
 // XDS URL: https://github.com/heiyeluren/xds
 //
 
-
 package xmap
 
 import (
 	"bytes"
 	"fmt"
+	"github.com/heiyeluren/xds"
+	"github.com/heiyeluren/xds/xmap/entry"
+	"github.com/heiyeluren/xmm"
 	"log"
 	"math/rand"
 	"net/http"
@@ -38,9 +40,6 @@ import (
 	"unsafe"
 	// "xds/xmap/entry"
 	"github.com/spf13/cast"
-	"github.com/heiyeluren/xmm"
-	"github.com/heiyeluren/xds"	
-	"github.com/heiyeluren/xds/xmap/entry"
 )
 
 type User struct {
@@ -273,5 +272,39 @@ func Test_NewDefaultConcurrentHashMap(t *testing.T) {
 		if val, exist, err := chmp.Get(s); err != nil || val != s || !exist {
 			t.Error("sss", err)
 		}
+	}
+}
+
+func TestXmap_ForEach(t *testing.T) {
+	f := &xmm.Factory{}
+	mm, err := f.CreateMemory(0.6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chmp, err := NewDefaultConcurrentHashMap(mm, xds.Uintptr, xds.Uintptr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 10000; i++ {
+		s := uintptr(i)
+		if err := chmp.Put(s, s); err != nil {
+			t.Error(err)
+		}
+	}
+	for i := 0; i < 10000; i++ {
+		s := uintptr(i)
+		if val, exist, err := chmp.Get(s); err != nil || val != s || !exist {
+			t.Error("sss", err)
+		}
+	}
+	i := 0
+	err = chmp.ForEach(func(key, val interface{}) error {
+		//fmt.Printf("ForEach key:%s value:%s \n", key, val)
+		i++
+		return nil
+	})
+	fmt.Println(i, chmp.Len())
+	if err != nil {
+		t.Error("sss", err)
 	}
 }

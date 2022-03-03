@@ -19,11 +19,10 @@
 package xmap
 
 import (
+	"github.com/heiyeluren/xds"
 	// "xds"
 	"github.com/heiyeluren/xmm"
-	"github.com/heiyeluren/xds"
 )
-
 
 // XMap is a map of maps.
 // ------------------------------------------------
@@ -90,8 +89,7 @@ func (xm *XMap) Get(key interface{}) (val interface{}, keyExists bool, err error
 	return xm.chm.Get(key)
 }
 
-
-// RawMap - Hashmap 
+// RawMap - Hashmap
 // ------------------------------------------------
 //  当做原生Hash Map来使用场景
 // 本套API主要是提供给把Xmap当做Hash表来使用的场景
@@ -126,17 +124,12 @@ func (xm *RawMap) Get(key []byte) ([]byte, bool, error) {
 	return xm.chm.Get(key)
 }
 
-
-
-
-
 // The data structure and interface between xMAP and the bottom layer
 // ------------------------------------------------
 //  xmap与底层交互的数据结构和接口
-// 
+//
 //   主要提供给上层xmap api调用，完成一些转换工作
 // ------------------------------------------------
-
 
 //底层交互数据结构（带有传入数据类型保存）
 type ConcurrentHashMap struct {
@@ -145,7 +138,6 @@ type ConcurrentHashMap struct {
 	data    *ConcurrentRawHashMap
 }
 
-
 // NewDefaultConcurrentHashMap 类似于make(map[keyKind]valKind)
 // mm 内存分配模块
 // keyKind: map中key的类型
@@ -153,7 +145,6 @@ type ConcurrentHashMap struct {
 func NewDefaultConcurrentHashMap(mm xmm.XMemory, keyKind, valKind xds.Kind) (*ConcurrentHashMap, error) {
 	return NewConcurrentHashMap(mm, 16, 0.75, 8, keyKind, valKind)
 }
-
 
 // NewConcurrentHashMap 类似于make(map[keyKind]valKind)
 // mm 内存分配模块
@@ -169,7 +160,6 @@ func NewConcurrentHashMap(mm xmm.XMemory, cap uintptr, fact float64, treeSize ui
 	}
 	return &ConcurrentHashMap{keyKind: keyKind, valKind: valKind, data: chm}, nil
 }
-
 
 //Get
 func (chm *ConcurrentHashMap) Get(key interface{}) (val interface{}, keyExists bool, err error) {
@@ -189,7 +179,6 @@ func (chm *ConcurrentHashMap) Get(key interface{}) (val interface{}, keyExists b
 	}
 	return ret, true, nil
 }
-
 
 //Put
 func (chm *ConcurrentHashMap) Put(key interface{}, val interface{}) (err error) {
@@ -213,4 +202,25 @@ func (chm *ConcurrentHashMap) Del(key interface{}) (err error) {
 	return chm.data.Del(k)
 }
 
+// ForEach 遍历所有key-vel对
+func (chm *ConcurrentHashMap) ForEach(fun func(key, val interface{}) error) error {
+	return chm.data.ForEach(func(keyRaw, valRaw []byte) error {
+		key, err := xds.ByteToRaw(chm.keyKind, keyRaw)
+		if err != nil {
+			return err
+		}
+		val, err := xds.ByteToRaw(chm.valKind, valRaw)
+		if err != nil {
+			return err
+		}
+		return fun(key, val)
+	})
+}
 
+// Len 存储元素个数
+func (chm *ConcurrentHashMap) Len() uint64 {
+	if chm.data == nil {
+		return 0
+	}
+	return chm.data.size
+}

@@ -31,9 +31,9 @@ import (
 	"time"
 	"unsafe"
 	// "xds/xmap/entry"
-	"github.com/spf13/cast"
-	"github.com/heiyeluren/xmm"
 	"github.com/heiyeluren/xds/xmap/entry"
+	"github.com/heiyeluren/xmm"
+	"github.com/spf13/cast"
 )
 
 func TestMap(t *testing.T) {
@@ -227,7 +227,7 @@ type Bucket2 struct {
 	forwarding bool // 已经迁移完成
 	rwlock     sync.RWMutex
 	index      uint64
-	newBulks   *[]uintptr
+	newBuckets *[]uintptr
 	Head       *entry.NodeEntry
 	/*
 		Tree       *entry.Tree
