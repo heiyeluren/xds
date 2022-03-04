@@ -48,6 +48,11 @@ const (
 */
 func TestMap(mm xmm.XMemory) {
 
+	// -------------------
+	// 常规的map操作
+	// -------------------
+
+	fmt.Println("\n--[ XMap NewMap() API example]--")
 	// 初始化xmap的时候必须制定key和val的数据类型，数据类型是在xmap中定义的
 	// 构建一个 map[string]int 的xmap
 	m, err := xmap.NewMap(mm, xds.String, xds.Int)
@@ -85,7 +90,13 @@ func TestMap(mm xmm.XMemory) {
 		fmt.Println("XMap.Get key: [", k11, "] not found")
 	}
 
-	// 调用扩展的Map函数使用方法(可以获得更高性能)
+
+	// -------------------
+	// 调用扩展的Map函数使用方法(可以获得更多定制性和更高性能)
+	// -------------------
+
+	fmt.Println("\n--[ XMap NewMapEx() API example]--")
+
 
 	// 生成KV数据
 	var (
@@ -93,14 +104,48 @@ func TestMap(mm xmm.XMemory) {
 		v22 = "heiyeluren"
 	)
 	// 生成一个 map[string]string 数据结构，默认大小256个元素，占用了75%后进行map扩容(这个初始化函数可以获得更好性能，看个人使用场景）
-	m, err = xmap.NewMapEx(mm, xds.String, xds.String, uintptr(256), 0.75)
+	m1, err := xmap.NewMapEx(mm, xds.String, xds.String, uintptr(256), 0.75)
 	// set数据
-	m.Set(k22, v22)
+	m1.Set(k22, v22)
 	// get数据
-	ret, exists, err = m.Get(k22)
+	ret, exists, err = m1.Get(k22)
 	fmt.Println("XMap.Get key: [", k22, "] , value: [", ret, "]")
 
+
+
+	// -------------------
+	// 遍历所有map数据
+	// -------------------
+
+	fmt.Println("\n--[ XMap ForEach all Key ]--")
+
+	// 写入数据
+	err = m.Set("k1", 1)
+	err = m.Set("k2", 2)
+	err = m.Set("k3", 3)
+	err = m.Set("k4", 4)
+	err = m.Set("k5", 5)
+
+	//全局变量可以在匿名函数中访问（如果需要使用外部变量，可以像这样）
+	gi := 1
+	fmt.Printf("for each itam start, gi: [%s] \n", gi)
+
+	// 遍历xmap中所有元素
+	m.Each(func(key, val interface{}) error {
+		//针对每个KV进行操作，比如打印出来
+		fmt.Printf("for each XMap all key:[%s] value:[%s] \n", key, val)
+		//外部变量使用操作
+		gi++
+		return nil
+	})
+	fmt.Printf("for each itam done, gi: [%s] \n", gi)
+
+	//读取map长度
+	len := m.Len()
+	fmt.Printf("\nMap length(size): [%s] \n", len)
+
 }
+
 
 // TestHashMap testing
 // -----------------------------------
@@ -109,7 +154,7 @@ func TestMap(mm xmm.XMemory) {
 // -----------------------------------
 func TestHashMap(mm xmm.XMemory) {
 
-	fmt.Println("===== XMap X(eXtensible) Raw Map (HashMap) example ======")
+	fmt.Println("\n\n===== XMap X(eXtensible) Raw Map (HashMap) example ======\n")
 
 	hm, err := xmap.NewHashMap(mm)
 	if err != nil {
@@ -124,7 +169,7 @@ func TestHashMap(mm xmm.XMemory) {
 	)
 
 	// 新增Key
-	fmt.Println("----- XMap Set Key ------")
+	fmt.Println("\n--[ Raw Map Set Key ]--")
 	err = hm.Set([]byte(k1), []byte(v1))
 	if err != nil {
 		panic("xmap.Set fail")
@@ -137,7 +182,7 @@ func TestHashMap(mm xmm.XMemory) {
 	fmt.Println("Xmap.Set key: [", k2, "] success")
 
 	// 读取Key
-	fmt.Println("----- XMap Get Key ------")
+	fmt.Println("\n--[ Raw Map Get Key ]--")
 	s1, exists, err := hm.Get([]byte(k1))
 	if err != nil {
 		panic("xmap.Get fail")
@@ -150,7 +195,7 @@ func TestHashMap(mm xmm.XMemory) {
 	fmt.Println("Xmap.Get key: [", k2, "], value: [", cast.ToString(s2), "]")
 
 	// 删除Key
-	fmt.Println("\n----- XMap Remove Key ------")
+	fmt.Println("\n--[ Raw Map Remove Key ]--")
 	err = hm.Remove([]byte(k1))
 	if err != nil {
 		panic("xmap.Remove fail")
@@ -182,6 +227,39 @@ func TestHashMap(mm xmm.XMemory) {
 		fmt.Println("Xmap.Get key: [", k1, "] Not Found")
 	}
 
+	//--------------------
+	// 遍历RawMap
+	//--------------------
+	fmt.Println("\n--[ Raw Map for each all Key ]--")
+	hm1, err := xmap.NewHashMap(mm)
+
+	// 写入数据
+	hm1.Set([]byte("K1"), []byte("V1"))
+	hm1.Set([]byte("K2"), []byte("V2"))
+	hm1.Set([]byte("K3"), []byte("V3"))
+	hm1.Set([]byte("K4"), []byte("V4"))
+
+	//hm1.Each(func(key, val []byte)(error) {
+	//	fmt.Println("for each raw map key:[", key, "],  val[", val, "]")
+	//})
+
+
+	//全局变量可以在匿名函数中访问（如果需要使用外部变量，可以像这样）
+	gi := 1
+	fmt.Printf("for each itam start, gi: [%s] \n", gi)
+
+	// 遍历xmap中所有元素
+	hm1.Each(func(key, val []byte) error {
+		//针对每个KV进行操作，比如打印出来
+		fmt.Printf("for each XMap all key:[%s] value:[%s] \n", key, val)
+		//外部变量使用操作
+		gi++
+		return nil
+	})
+	//读取map长度
+	len := hm1.Len()
+	fmt.Printf("\nMap length(size): [%s] \n", len)
+
 }
 
 // xmap测试代码
@@ -191,7 +269,7 @@ func main() {
 	if err != nil {
 		panic("xmm.CreateConcurrentHashMapMemory fail")
 	}
-	fmt.Println("===== XMap X(eXtensible) Map example ======")
+	fmt.Println("\n===== XMap X(eXtensible) Map example ======\n")
 
 	// var NotFound = errors.New("not found")
 
@@ -201,6 +279,6 @@ func main() {
 	// 把Xmap当做普通hashmap来使用
 	TestHashMap(mm)
 
-	fmt.Println("Xmap test case done.")
+	fmt.Println("\nXmap test case done.\n\n")
 
 }
