@@ -89,6 +89,18 @@ func (xm *XMap) Get(key interface{}) (val interface{}, keyExists bool, err error
 	return xm.chm.Get(key)
 }
 
+// Each 遍历所有数据
+func (xm *XMap) Each(f func(key, val interface{}) error) error {
+	return xm.chm.ForEach(f)
+}
+
+// Len 获取整个map的元素数量
+func (xm *XMap) Len() uint64 {
+	return xm.chm.Len()
+}
+
+
+
 // RawMap - Hashmap
 // ------------------------------------------------
 //  当做原生Hash Map来使用场景
@@ -123,6 +135,20 @@ func (xm *RawMap) Remove(key []byte) error {
 func (xm *RawMap) Get(key []byte) ([]byte, bool, error) {
 	return xm.chm.Get(key)
 }
+
+// Each 遍历所有数据
+func (xm *RawMap) Each(f func(key, val []byte) error) error {
+	return xm.chm.ForEach(f)
+}
+
+// Len 获取整个map的元素数量
+func (xm *RawMap) Len() uint64 {
+	return xm.chm.size
+}
+
+
+
+
 
 // The data structure and interface between xMAP and the bottom layer
 // ------------------------------------------------
