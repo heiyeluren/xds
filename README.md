@@ -108,7 +108,8 @@ go get -u github.com/heiyeluren/xmm
 
 ```go
 //注意：本代码只是伪代码，大家最好看这个使用测试案例更充分一些
-//使用案例：https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go
+//详细使用案例：https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go
+//快速使用入门：https://github.com/heiyeluren/xds/blob/main/example/xmap_test1.go
 
 import (
    xmm "github.com/heiyeluren/xmm"
@@ -127,6 +128,13 @@ m, err := xmap.NewMap(mm, xds.String, xds.String)
 err = m.Set("name", "heiyeluren")
 ret, key_exists, err := m.Get("name")
 err = m.Remove("name")
+
+// 遍历整个map
+m.Each(func(key, val interface{}) error {
+  fmt.Printf("For each XMap all key:[%s] value:[%s] \n", key, val)
+  return nil
+})
+
 //...
 
 ```
@@ -141,7 +149,9 @@ go run map-test.go
 
 ### XMap 各类 API 使用案例
 
-#### - [XMap 使用示例](https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go) - 
+#### - [Xmap 快速使用入门](https://github.com/heiyeluren/xds/blob/main/example/xmap_test1.go)
+
+#### - [XMap 详细使用示例](https://github.com/heiyeluren/xds/blob/main/example/xmap_test0.go) - 
 
  - 更多案例（期待）
 
