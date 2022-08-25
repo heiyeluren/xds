@@ -2,59 +2,74 @@ package main
 
 import (
 	"fmt"
-	"github.com/heiyeluren/xmm"
+//	"github.com/heiyeluren/xmm"
 	"github.com/heiyeluren/xds"
 	"github.com/heiyeluren/xds/xslice"
 )
 
-//------------------
-// xmap快速使用案例
-//------------------
+//---------------------
+// xslice快速使用案例
+//---------------------
 
 func main() {
 
-	//创建XMM内存块
-	f := &xmm.Factory{}
-	mm, err := f.CreateMemory(0.75)
-	if err != nil {
-		panic("error")
+	//创建XSlice对象, 类似于 s0 []Int64 = make([]Int64, 1)
+	s0 := xslice.NewXslice(xds.Int,1)
+
+	//Set压入数据, 类似于 s0 :=[] int { 11, 22, 33 } 
+	s0.Set(1, 11)
+	s0.Set(2, 22)
+	s0.Set(3, 33)
+
+	//Get读取一个数据
+	vi,nil := s0.Get(1)
+	fmt.Println("XSlice get data 1: ", vi)
+	vi,nil = s0.Get(2)
+	fmt.Println("XSlice get data 2: ", vi)
+	vi,nil = s0.Get(3)
+	fmt.Println("XSlice get data 3: ", vi)
+
+	//读取整个slice长度, 类似于 len()
+	fmt.Println("XSlice data size: ", s0.Len(), "\n")
+
+	//释放资源
+	s0.Free()
+
+	//批量压入Int ( 类似于 s1 []Int64 = make([]Int64, 1) )
+	s1 := xslice.NewXslice(xds.Int, 10)
+	for i:=50; i<=55; i++ {
+		s1.Append(i)
 	}
-
-	//用xmap创建一个map，结构类似于 map[string]uint，操作类似于 m: = make(map[string]uint)
-	m, err := xmap.NewMap(mm, xds.String, xds.Int)
-	if err != nil {
-		panic("error")
-	}
-	// 调用Set()给xmap写入数据
-	err = m.Set("k1", 1)
-	err = m.Set("k2", 2)
-	err = m.Set("k3", 3)
-	err = m.Set("k4", 4)
-	err = m.Set("k5", 5)
-
-	// 调用Get()读取单个数据
-	ret, exists, err := m.Get("k1")
-	if exists == false {
-		panic("key not found")
-	}
-	fmt.Printf("Get data key:[%s] value:[%s] \n", "k1", ret)
-
-	// 使用Each()访问所有xmap元素
-	// 在遍历操作中，让全局变量可以在匿名函数中访问（如果需要使用外部变量，可以像这样）
-	gi := 1
-	//调用 Each 遍历函数
-	m.Each(func(key, val interface{}) error {
-		//针对每个KV进行操作，比如打印出来
-		fmt.Printf("For each XMap all key:[%s] value:[%s] \n", key, val)
-
-		//外部变量使用操作
-		gi++
+	//使用ForEach读取所有数据
+	s1.ForEach(func(i1 int, v1 []byte) error {
+		fmt.Println("XSlice foreach data i: ",i1, " v: ", string(v1))
 		return nil
 	})
-	fmt.Printf("For each success, var[gi], val[%s]\n", gi);
+// 	fmt.Println(s1.s)
 
-	//使用Len()获取xmap元素总数量
-	len := m.Len()
-	fmt.Printf("Xmap item size:[%s]\n", len);
+	//读取整个slice长度, 类似于 len()
+	fmt.Println("XSlice data size: ", s1.Len(), "\n")
+
+	//使用 Append压入一批String数据 ( 类似于 s2 []String = make([]String, 1) )
+	s2 := xslice.NewXslice(xds.String, 10)
+	s2.Append("aaa")
+	s2.Append("bbb")
+	s2.Append("ccc")
+	s2.Append("ddd")
+	s2.Append("eee")
+
+	//使用ForEach读取所有数据
+	s2.ForEach(func(i2 int, v2 []byte) error {
+		fmt.Println("XSlice foreach data i: ", i2, " v: ", string(v2))
+		return nil
+	})
+
+	//读取整个slice长度, 类似于 len()
+	fmt.Println("XSlice data size: ", s2.Len(), "\n")
+
+	//释放资源
+	s2.Free()
+
+
 
 }
