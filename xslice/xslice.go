@@ -78,7 +78,6 @@ func(xs *Xslice) Append(v interface{})  (*Xslice,error) {
 		xs.s = append(xs.s,newSlot)
 		xs.curWSlotPos += 1
 	}
-
 	b,err := xds.Marshal(xs._stype,v)
 	if err != nil{
 		return xs,err
@@ -126,7 +125,6 @@ func (xs *Xslice) Get(n int) (interface{}, error) {
 	var gapPos int64 = 0
 	slotCap := float64(n % _blockSize)
 	gapPos = int64(slotCap)
-
 	b := xs.s[xs.curWSlotPos][gapPos]
 	v,err := xds.UnMarshal(xs._stype,b)
 	if err != nil{
@@ -148,7 +146,7 @@ func (xs *Xslice) Free ()  {
 	xs.lock.Unlock()
 }
 
-func(xs *Xslice) ForEach(f func(i int, v []byte) error) error{
+func(xs *Xslice) ForEach(f func(i int, v interface{}) error) error{
 	xs.lock.Lock()
 	defer xs.lock.Unlock()
 
@@ -160,7 +158,13 @@ func(xs *Xslice) ForEach(f func(i int, v []byte) error) error{
 				return nil
 			}
 			c = c + 1
-			if err := f(c,b);err != nil{
+
+			v,err := xds.UnMarshal(xs._stype,b)
+			if err != nil{
+				return nil
+			}
+
+			if err := f(c,v);err != nil{
 				return err
 			}
 		}
