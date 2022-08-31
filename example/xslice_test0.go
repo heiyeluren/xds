@@ -12,9 +12,14 @@ import (
 //---------------------
 
 func main() {
+    
+    fmt.Println("\n--[ Xslice  API example]--\n")
+
 
 	//创建XSlice对象, 类似于 s0 []Int64 = make([]Int64, 1)
 	s0 := xslice.NewXslice(xds.Int,1)
+	
+	fmt.Println("\n### Xslice - Set/Get OP ###\n")
 
 	//Set压入数据, 类似于 s0 :=[] int { 11, 22, 33 }
 	s0.Set(1, 11)
@@ -34,6 +39,8 @@ func main() {
 
 	//释放资源
 	s0.Free()
+	
+	fmt.Println("\n### Xslice - Append/ForEach OP ###\n")
 
 	//批量压入Int ( 类似于 s1 []Int64 = make([]Int64, 1) )
 	s1 := xslice.NewXslice(xds.Int, 1)
@@ -48,7 +55,9 @@ func main() {
 		fmt.Println("XSlice foreach data i: ",i, " v: ", v)
 		return nil
 	})
-	//fmt.Println(s1)
+	
+	fmt.Println("\n### Xslice - Append/ForEach Data struct ###\n")
+	fmt.Println(s1, "\n")
 
 	////读取整个slice长度, 类似于 len()
 	fmt.Println("XSlice data size: ", s1.Len(), "\n")
