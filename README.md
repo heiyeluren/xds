@@ -191,10 +191,11 @@ go run map-test.go
 
 XDS 还在早期，当然也少不了一些问题和 bug，欢迎大家一起共创，或者直接提交 PR 等等。
 
-欢迎加入 XDS 技术交流微信群，要加群，可以先添加如下微信让对方拉入群：<br />
-（如无法看到图片，请手工添加微信： heiyeluren2017 ）
 
-<img src=https://raw.githubusercontent.com/heiyeluren/xmm/main/docs/img/heiyeluren2017-wx.jpg width=40% />
+欢迎加入 XDS 技术交流微信群，要加群，可以先关注添加如下公众号：<br />
+（如无法看到图片，请直接微信里搜索公众号“黑夜路人技术”，关注发送“加群”字样信息即可 ）
+
+<img src=https://raw.githubusercontent.com/heiyeluren/xmm/main/docs/img/heiyeluren-tech-wx-public.jpg width=40% />
 
 
 
